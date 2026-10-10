@@ -203,7 +203,7 @@ export class CosmicScene {
         const core=this.sphere(.36,'#7f9bbf','#4d6a91',.2);
         core.position.set(1.1,-.3,.45);
         this.subject.add(core);
-        const halo=new THREE.Sprite(new THREE.ShaderMaterial({
+        const halo=new THREE.Mesh(new THREE.PlaneGeometry(2.4,2.4),new THREE.ShaderMaterial({
           transparent:true,depthWrite:false,depthTest:true,
           blending:THREE.AdditiveBlending,
           uniforms:{uFade:{value:1}},
@@ -227,7 +227,6 @@ export class CosmicScene {
           `
         }));
         halo.position.copy(core.position);
-        halo.scale.set(2.4,2.4,1);
         this.subject.add(halo);
       }
 
