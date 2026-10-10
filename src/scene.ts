@@ -90,7 +90,18 @@ export class CosmicScene {
         colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;
         sizes[i]=core?1.5+Math.random()*1.5:.65+Math.random()*1.2;
       }
+      const orbits=new Float32Array(count*3);
+      const seeds=new Float32Array(count);
+      for(let i=0;i<count;i++){
+        const x=pos[i*3],y=pos[i*3+1]/.52;
+        orbits[i*3]=Math.hypot(x,y);
+        orbits[i*3+1]=Math.atan2(y,x);
+        orbits[i*3+2]=pos[i*3+2];
+        seeds[i]=Math.random()*6.2831853;
+      }
       const geo=new THREE.BufferGeometry();
+      geo.setAttribute('aOrbit',new THREE.BufferAttribute(orbits,3));
+      geo.setAttribute('aSeed',new THREE.BufferAttribute(seeds,1));
       geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
       geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
       geo.setAttribute('aSize',new THREE.BufferAttribute(sizes,1));
@@ -98,11 +109,22 @@ export class CosmicScene {
         transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
         uniforms:{uTime:{value:0},uFade:{value:1}},
         vertexShader:`
-          attribute vec3 color;attribute float aSize;varying vec3 vColor;
+          attribute vec3 color;attribute float aSize;
+          attribute vec3 aOrbit;attribute float aSeed;
+          varying vec3 vColor;
           uniform float uTime;
           void main(){
             vColor=color;
-            vec4 mv=modelViewMatrix*vec4(position,1.);
+            float radius=aOrbit.x;
+            // Differential stellar orbits: the central regions turn faster.
+            // A weak density-wave perturbation keeps the spiral from looking rigid.
+            float speed=-.095/(1.0+radius*.31);
+            float theta=aOrbit.y+uTime*speed;
+            float wave=sin(theta*3.0+radius*1.9+uTime*.035+aSeed*.15);
+            float radial=radius+wave*.065;
+            float flutter=sin(uTime*.19+aSeed+radius*1.6)*.045;
+            vec3 animatedPosition=vec3(cos(theta)*radial,sin(theta)*radial*.52,aOrbit.z+flutter);
+            vec4 mv=modelViewMatrix*vec4(animatedPosition,1.);
             gl_Position=projectionMatrix*mv;
             gl_PointSize=clamp(aSize*135.0/max(-mv.z,1.0),3.0,23.0);
           }
@@ -266,7 +288,8 @@ export class CosmicScene {
       if(this.active==='galaxy'||this.active==='nebula'){
         // The galaxy lies in local XY: its normal is local Z.
         // Rotate around that local normal while preserving the viewing tilt.
-        this.subject.rotateZ(-dt*.028);
+        // Individual star orbits are animated by the vertex shader.
+        // Keep the disk orientation fixed relative to the viewer.
       }else if(this.active!=='blackhole' && this.active!=='remnant'){
         this.subject.rotation.y+=dt*.045;
       }
@@ -280,7 +303,7 @@ export class CosmicScene {
         const exit=this.ease(old.elapsed/this.duration);
         this.fade(old.group,1-exit);
         old.group.scale.setScalar(1+.12*exit);
-        if(old.group.userData.diskGalaxy)old.group.rotateZ(-dt*.028);
+        if(old.group.userData.diskGalaxy){ /* preserve disk tilt during crossfade */ }
         else old.group.rotation.y+=dt*.06;
         if(old.elapsed>=this.duration)this.disposeGroup(old.group);
       }
