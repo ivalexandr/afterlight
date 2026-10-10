@@ -122,7 +122,9 @@ export class CosmicScene {
       const galacticStars=new THREE.Points(geo,starsMaterial);
       galacticStars.userData.animatedShader=true;
       this.subject.add(galacticStars);
+      // Tilt the disk once; rotate its particles around their own disk normal.
       this.subject.rotation.x=.6;
+      this.subject.userData.diskGalaxy=true;
     }else{
       const count=era.scene==='remnant'?420:1000,pos=new Float32Array(count*3);
       for(let i=0;i<count;i++){pos[i*3]=(Math.random()-.5)*15;pos[i*3+1]=(Math.random()-.5)*9;pos[i*3+2]=(Math.random()-.5)*8;}
@@ -162,7 +164,13 @@ export class CosmicScene {
     (this.stars.material as THREE.PointsMaterial).color.copy(this.currentColor).lerp(new THREE.Color('#e1eaff'),.5);
     (this.stars.material as THREE.PointsMaterial).opacity=this.active==='dark'?.06:.72;
     if(!this.reduceMotion){
-      this.subject.rotation.y+=this.active==='blackhole'?0:dt*.045;
+      if(this.active==='galaxy'||this.active==='nebula'){
+        // The galaxy lies in local XY: its normal is local Z.
+        // Rotate around that local normal while preserving the viewing tilt.
+        this.subject.rotateZ(dt*.028);
+      }else if(this.active!=='blackhole'){
+        this.subject.rotation.y+=dt*.045;
+      }
       this.stars.rotation.y+=dt*.0015;
       this.incomingElapsed=Math.min(this.duration,this.incomingElapsed+dt);
       const enter=this.ease(this.incomingElapsed/this.duration);
@@ -173,7 +181,8 @@ export class CosmicScene {
         const exit=this.ease(old.elapsed/this.duration);
         this.fade(old.group,1-exit);
         old.group.scale.setScalar(1+.12*exit);
-        old.group.rotation.y+=dt*.06;
+        if(old.group.userData.diskGalaxy)old.group.rotateZ(dt*.028);
+        else old.group.rotation.y+=dt*.06;
         if(old.elapsed>=this.duration)this.disposeGroup(old.group);
       }
       this.outgoing=this.outgoing.filter(old=>old.elapsed<this.duration);
