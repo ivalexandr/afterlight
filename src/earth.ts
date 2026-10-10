@@ -59,14 +59,18 @@ export function createEarth(future:boolean):THREE.Group {
         }
         vec3 surface=texture2D(uMap,uv).rgb;
         vec3 normal=normalize(vNormal);
-        vec3 light=normalize(vec3(.3,.35,1.));
+        // Key light near the viewer: keep the continents legible.
+        vec3 light=normalize(vec3(-.25,.42,1.));
         float ndl=max(dot(normal,light),0.);
-        float day=.48+.52*smoothstep(-.2,.72,ndl);
-        vec3 col=surface*day*1.32;
+        float day=.62+.38*smoothstep(-.15,.8,ndl);
+        vec3 col=surface*day*1.55;
+        col=mix(col,col*vec3(1.06,1.09,1.12),.4);
         // Blue atmospheric scattering at the limb.
         float rim=pow(1.-max(dot(normal,normalize(-vWorld)),0.),3.);
         col+=vec3(.11,.36,.9)*rim*.65;
         gl_FragColor=vec4(col,uFade);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `
   });
@@ -93,11 +97,19 @@ export function createEarth(future:boolean):THREE.Group {
           mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);
         }
         void main(){
-          vec3 p=vPos*22.+vec3(uTime*.008,0.,0.);
-          float n=noise(p)*.50+noise(p*2.1)*.32+noise(p*4.2)*.18;
-          float cloud=smoothstep(.59,.78,n)*.19;
-          if(cloud<.008)discard;
-          gl_FragColor=vec4(vec3(.79,.87,1.),cloud*uFade);
+          // Low-frequency cloud bands with wispy high-frequency details.
+          // Keep cloud coverage sparse enough to reveal the land beneath.
+          vec3 p=vPos*5.5+vec3(uTime*.006,0.,0.);
+          float broad=noise(p)*.58+noise(p*2.1)*.29+noise(p*4.4)*.13;
+          float wisps=noise(p*10.0)*.65+noise(p*19.0)*.35;
+          float field=broad*.82+wisps*.18;
+          float cloud=smoothstep(.57,.69,field)*.30;
+          float sunlight=.55+.45*max(dot(normalize(vNormal),normalize(vec3(-.25,.42,1.))),0.);
+          cloud*=sunlight;
+          if(cloud<.003)discard;
+          gl_FragColor=vec4(vec3(.88,.93,1.),cloud*uFade);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
         }
       `
     })
