@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Era } from './timeline';
 import { createBlackHole } from './blackHole';
+import { createStellarSurface, createStellarHalo } from './stellar';
 
 export class CosmicScene {
   private renderer: THREE.WebGLRenderer;
@@ -68,8 +69,9 @@ export class CosmicScene {
     }else if(era.scene==='sun'||era.scene==='giant'||era.scene==='dwarf'){
       const radius=era.scene==='giant'?4.4:era.scene==='dwarf'?1.5:2.65;
       const color=era.scene==='giant'?'#ef673e':era.scene==='dwarf'?'#ba4c35':'#ffbd65';
-      const star=this.sphere(radius,color,color,.95);this.subject.add(star);this.glow(radius*1.16,color,.13);
-      const corona=new THREE.Mesh(new THREE.TorusGeometry(radius*1.23,.012,6,180),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.35}));corona.rotation.x=.9;this.subject.add(corona);
+      const star=createStellarSurface(radius,era.scene);
+      this.subject.add(createStellarHalo(radius,color));
+      this.subject.add(star);
     }else if(era.scene==='blackhole'){
       const hole=createBlackHole();
       // At the end of the black-hole era, the disk should be much dimmer.
@@ -82,7 +84,34 @@ export class CosmicScene {
         const c=base.clone().lerp(new THREE.Color('#ffffff'),Math.random()*.65);colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;
       }
       const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
-      this.subject.add(new THREE.Points(geo,new THREE.PointsMaterial({size:.055,vertexColors:true,transparent:true,opacity:.8,depthWrite:false})));
+      const starsMaterial=new THREE.ShaderMaterial({
+        transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+        uniforms:{uTime:{value:0},uFade:{value:1}},
+        vertexShader:`
+          attribute vec3 color;varying vec3 vColor;
+          uniform float uTime;
+          void main(){
+            vColor=color;
+            vec4 mv=modelViewMatrix*vec4(position,1.);
+            gl_Position=projectionMatrix*mv;
+            gl_PointSize=clamp(15.0/-mv.z,1.5,6.0);
+          }
+        `,
+        fragmentShader:`
+          precision mediump float;
+          varying vec3 vColor;uniform float uFade;
+          void main(){
+            float r=length(gl_PointCoord-.5)*2.;
+            float glow=exp(-r*r*5.0);
+            float core=exp(-r*r*32.0);
+            float a=(glow*.4+core*.9)*uFade;
+            gl_FragColor=vec4(vColor*(glow*.6+core*1.7),a);
+          }
+        `
+      });
+      const galacticStars=new THREE.Points(geo,starsMaterial);
+      galacticStars.userData.animatedShader=true;
+      this.subject.add(galacticStars);
       this.subject.rotation.x=.6;
     }else{
       const count=era.scene==='remnant'?420:1000,pos=new Float32Array(count*3);
@@ -141,8 +170,9 @@ export class CosmicScene {
     }
     for(const group of [this.subject,...this.outgoing.map(item=>item.group)]){
       group.traverse(object=>{
-        if(object instanceof THREE.Mesh && object.userData.blackHole){
-          (object.material as THREE.ShaderMaterial).uniforms.uTime.value+=this.reduceMotion?0:dt;
+        if((object instanceof THREE.Mesh || object instanceof THREE.Points) && (object.userData.blackHole || object.userData.animatedShader)){
+          const material=object.material as THREE.ShaderMaterial;
+          if(material.uniforms.uTime)material.uniforms.uTime.value+=this.reduceMotion?0:dt;
         }
       });
     }
