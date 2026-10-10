@@ -203,9 +203,28 @@ export class CosmicScene {
         const core=this.sphere(.36,'#7f9bbf','#4d6a91',.2);
         core.position.set(1.1,-.3,.45);
         this.subject.add(core);
-        const halo=new THREE.Sprite(new THREE.SpriteMaterial({
-          color:'#779bd2',transparent:true,opacity:.13,
-          blending:THREE.AdditiveBlending,depthWrite:false
+        const halo=new THREE.Sprite(new THREE.ShaderMaterial({
+          transparent:true,depthWrite:false,depthTest:true,
+          blending:THREE.AdditiveBlending,
+          uniforms:{uFade:{value:1}},
+          vertexShader:`
+            varying vec2 vUv;
+            void main(){
+              vUv=uv;
+              gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
+            }
+          `,
+          fragmentShader:`
+            precision mediump float;
+            varying vec2 vUv;
+            uniform float uFade;
+            void main(){
+              float r=length(vUv-.5)*2.;
+              float glow=exp(-r*r*9.);
+              float alpha=glow*.16*uFade*smoothstep(1.,.15,r);
+              gl_FragColor=vec4(vec3(.36,.55,.86),alpha);
+            }
+          `
         }));
         halo.position.copy(core.position);
         halo.scale.set(2.4,2.4,1);
