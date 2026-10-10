@@ -63,8 +63,8 @@ export class CosmicScene {
     this.incomingElapsed=this.reduceMotion?this.duration:0;
     this.subject.scale.setScalar(this.reduceMotion?1:.82);
     if(era.scene==='dark')return;
-    if(era.scene==='earth'){
-      this.subject.add(createEarth(era.id==='continents'));
+    if(era.scene==='earth'||era.id==='oceans'){
+      this.subject.add(createEarth(era.id==='oceans'?'dry':era.id==='continents'?'future':'present'));
     }else if(era.scene==='sun'||era.scene==='giant'||era.scene==='dwarf'){
       const radius=era.scene==='giant'?4.4:era.scene==='dwarf'?1.5:2.65;
       const color=era.scene==='giant'?'#ef673e':era.scene==='dwarf'?'#ba4c35':'#ffbd65';
