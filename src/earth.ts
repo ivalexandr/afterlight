@@ -59,10 +59,10 @@ export function createEarth(future:boolean):THREE.Group {
         }
         vec3 surface=texture2D(uMap,uv).rgb;
         vec3 normal=normalize(vNormal);
-        vec3 light=normalize(vec3(-.55,.4,1.));
+        vec3 light=normalize(vec3(.3,.35,1.));
         float ndl=max(dot(normal,light),0.);
-        float day=.12+.88*smoothstep(-.18,.65,ndl);
-        vec3 col=surface*day;
+        float day=.48+.52*smoothstep(-.2,.72,ndl);
+        vec3 col=surface*day*1.32;
         // Blue atmospheric scattering at the limb.
         float rim=pow(1.-max(dot(normal,normalize(-vWorld)),0.),3.);
         col+=vec3(.11,.36,.9)*rim*.65;
@@ -93,9 +93,10 @@ export function createEarth(future:boolean):THREE.Group {
           mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);
         }
         void main(){
-          vec3 p=vPos*8.+vec3(uTime*.008,0.,0.);
-          float n=noise(p)*.55+noise(p*2.1)*.3+noise(p*4.2)*.15;
-          float cloud=smoothstep(.51,.69,n)*.45;
+          vec3 p=vPos*22.+vec3(uTime*.008,0.,0.);
+          float n=noise(p)*.50+noise(p*2.1)*.32+noise(p*4.2)*.18;
+          float cloud=smoothstep(.59,.78,n)*.19;
+          if(cloud<.008)discard;
           gl_FragColor=vec4(vec3(.79,.87,1.),cloud*uFade);
         }
       `
