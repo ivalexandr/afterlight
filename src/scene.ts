@@ -126,16 +126,97 @@ export class CosmicScene {
       this.subject.rotation.x=.6;
       this.subject.userData.diskGalaxy=true;
     }else{
-      const count=era.scene==='remnant'?420:1000,pos=new Float32Array(count*3);
-      for(let i=0;i<count;i++){pos[i*3]=(Math.random()-.5)*15;pos[i*3+1]=(Math.random()-.5)*9;pos[i*3+2]=(Math.random()-.5)*8;}
-      const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
-      this.subject.add(new THREE.Points(geo,new THREE.PointsMaterial({color:era.accent,size:.075,transparent:true,opacity:.75})));
-      this.subject.add(this.sphere(1.35,'#b3c1d9','#657ba6',.25));this.glow(1.55,era.accent,.07);
+      // The degenerate-matter era: faint stellar corpses, drifting apart.
+      // At the hypothetical proton-decay milestone the particles are fewer
+      // and more diffuse. No large planet-like sphere remains.
+      const protonDecay=era.id==='protons';
+      const count=protonDecay?700:2100;
+      const positions=new Float32Array(count*3);
+      const colors=new Float32Array(count*3);
+      const sizes=new Float32Array(count);
+      const phases=new Float32Array(count);
+      const velocities=new Float32Array(count*3);
+      const cold=new THREE.Color('#83a6da');
+      const warm=new THREE.Color('#ffd1a2');
+      const purple=new THREE.Color('#b6a6f4');
+      for(let i=0;i<count;i++){
+        const t=Math.random()*Math.PI*2;
+        const radial=Math.pow(Math.random(),.65)*(protonDecay?8.5:6.8);
+        const thickness=(Math.random()-.5)*(protonDecay?6:2.7);
+        positions[i*3]=Math.cos(t)*radial;
+        positions[i*3+1]=Math.sin(t)*radial*.53;
+        positions[i*3+2]=thickness;
+        const color=protonDecay?cold.clone().lerp(purple,Math.random()):cold.clone().lerp(warm,Math.pow(Math.random(),3));
+        colors[i*3]=color.r;colors[i*3+1]=color.g;colors[i*3+2]=color.b;
+        sizes[i]=protonDecay?.35+Math.random()*.7:.55+Math.random()*1.6;
+        phases[i]=Math.random()*Math.PI*2;
+        const speed=protonDecay?.15:.07;
+        velocities[i*3]=Math.cos(t)*speed;
+        velocities[i*3+1]=Math.sin(t)*speed;
+        velocities[i*3+2]=(Math.random()-.5)*speed;
+      }
+      const geometry=new THREE.BufferGeometry();
+      geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+      geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+      geometry.setAttribute('aSize',new THREE.BufferAttribute(sizes,1));
+      geometry.setAttribute('aPhase',new THREE.BufferAttribute(phases,1));
+      geometry.setAttribute('aVelocity',new THREE.BufferAttribute(velocities,3));
+      const material=new THREE.ShaderMaterial({
+        transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+        uniforms:{uTime:{value:0},uFade:{value:1}},
+        vertexShader:`
+          attribute vec3 color;
+          attribute float aSize,aPhase;
+          attribute vec3 aVelocity;
+          varying vec3 vColor;
+          varying float vPulse;
+          uniform float uTime;
+          void main(){
+            vColor=color;
+            float drift=mod(uTime,120.0);
+            vec3 p=position+aVelocity*drift;
+            vec4 mv=modelViewMatrix*vec4(p,1.);
+            gl_Position=projectionMatrix*mv;
+            gl_PointSize=clamp(aSize*105.0/max(-mv.z,1.),1.5,14.);
+            vPulse=.76+.24*sin(uTime*.45+aPhase);
+          }
+        `,
+        fragmentShader:`
+          precision mediump float;
+          varying vec3 vColor;
+          varying float vPulse;
+          uniform float uFade;
+          void main(){
+            float r=length(gl_PointCoord-.5)*2.;
+            float core=exp(-r*r*22.);
+            float halo=exp(-r*r*4.);
+            float alpha=(core*.7+halo*.22)*vPulse*uFade;
+            gl_FragColor=vec4(vColor*(core*1.7+halo*.35),alpha);
+          }
+        `
+      });
+      const debris=new THREE.Points(geometry,material);
+      debris.userData.animatedShader=true;
+      this.subject.add(debris);
+      if(!protonDecay){
+        // The final compact stellar remnant: small, cold and barely luminous.
+        const core=this.sphere(.36,'#7f9bbf','#4d6a91',.2);
+        core.position.set(1.1,-.3,.45);
+        this.subject.add(core);
+        const halo=new THREE.Sprite(new THREE.SpriteMaterial({
+          color:'#779bd2',transparent:true,opacity:.13,
+          blending:THREE.AdditiveBlending,depthWrite:false
+        }));
+        halo.position.copy(core.position);
+        halo.scale.set(2.4,2.4,1);
+        this.subject.add(halo);
+      }
+
     }
   }
   private fade(group:THREE.Group,opacity:number){
     group.traverse(object=>{
-      if(!(object instanceof THREE.Mesh || object instanceof THREE.Points))return;
+      if(!(object instanceof THREE.Mesh || object instanceof THREE.Points || object instanceof THREE.Sprite))return;
       const materials=Array.isArray(object.material)?object.material:[object.material];
       for(const material of materials){
         const m=material as THREE.Material & {userData:{baseOpacity?:number}};
@@ -168,7 +249,7 @@ export class CosmicScene {
         // The galaxy lies in local XY: its normal is local Z.
         // Rotate around that local normal while preserving the viewing tilt.
         this.subject.rotateZ(-dt*.028);
-      }else if(this.active!=='blackhole'){
+      }else if(this.active!=='blackhole' && this.active!=='remnant'){
         this.subject.rotation.y+=dt*.045;
       }
       this.stars.rotation.y+=dt*.0015;
