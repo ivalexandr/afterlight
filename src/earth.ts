@@ -27,13 +27,14 @@ function earthTexture():THREE.Texture {
   return cached;
 }
 
-export function createEarth(future:boolean):THREE.Group {
+export function createEarth(mode:'present'|'future'|'dry'):THREE.Group {
   const group=new THREE.Group();
   const radius=2.6;
   const material=new THREE.ShaderMaterial({
     uniforms:{
       uMap:{value:earthTexture()},
-      uFuture:{value:future?1:0},
+      uFuture:{value:mode==='future'?1:0},
+      uDry:{value:mode==='dry'?1:0},
       uFade:{value:1},
       uTime:{value:0},
     },
@@ -52,7 +53,7 @@ export function createEarth(future:boolean):THREE.Group {
     fragmentShader:`
       precision highp float;
       uniform sampler2D uMap;
-      uniform float uFuture,uFade,uTime;
+      uniform float uFuture,uDry,uFade,uTime;
       varying vec2 vUv; varying vec3 vNormal; varying vec3 vWorld;
       float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       void main(){
@@ -69,16 +70,24 @@ export function createEarth(future:boolean):THREE.Group {
           uv.y=clamp(uv.y,.001,.999);
         }
         vec3 surface=texture2D(uMap,uv).rgb;
+        if(uDry>.5){
+          // Expose a rocky seabed in place of oceans; keep continental relief.
+          float ocean=smoothstep(.015,.095,surface.b-max(surface.r,surface.g));
+          float grain=sin(uv.x*180.0+sin(uv.y*55.0)*2.0)*sin(uv.y*130.0);
+          vec3 seabed=mix(vec3(.26,.21,.17),vec3(.51,.38,.27),clamp(surface.b*1.6,0.,1.));
+          seabed*=.86+.14*grain;
+          surface=mix(surface*vec3(1.27,1.07,.83),seabed,ocean);
+        }
         vec3 normal=normalize(vNormal);
         // Key light near the viewer: keep the continents legible.
         vec3 light=normalize(vec3(-.25,.42,1.));
         float ndl=max(dot(normal,light),0.);
         float day=.62+.38*smoothstep(-.15,.8,ndl);
-        vec3 col=surface*day*1.55;
+        vec3 col=surface*day*(uDry>.5?1.35:1.55);
         col=mix(col,col*vec3(1.06,1.09,1.12),.4);
         // Blue atmospheric scattering at the limb.
         float rim=pow(1.-max(dot(normal,normalize(-vWorld)),0.),3.);
-        col+=vec3(.11,.36,.9)*rim*.65;
+        col+=mix(vec3(.11,.36,.9),vec3(.83,.43,.19),step(.5,uDry))*rim*(uDry>.5?.38:.65);
         gl_FragColor=vec4(col,uFade);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -92,6 +101,7 @@ export function createEarth(future:boolean):THREE.Group {
 
   // Real cloud-cover imagery, mapped to a slightly larger sphere.
   // A separate UV offset produces slow atmospheric drift.
+  if(mode!=='dry'){
   const clouds=new THREE.Mesh(new THREE.SphereGeometry(radius*1.013,96,64),
     new THREE.ShaderMaterial({
       uniforms:{uClouds:{value:cloudTexture()},uTime:{value:0},uFade:{value:1}},
@@ -128,5 +138,6 @@ export function createEarth(future:boolean):THREE.Group {
   clouds.rotation.y=.3;
   clouds.userData.animatedShader=true;
   group.add(clouds);
+  }
   return group;
 }
