@@ -3,8 +3,19 @@ import * as THREE from 'three';
 // Earth imagery from the Three.js example asset collection (MIT).
 // The future continental arrangement is illustrative, not a geophysical forecast.
 const EARTH_MAP='https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg';
+const CLOUD_MAP='https://threejs.org/examples/textures/planets/earth_clouds_1024.png';
 const loader=new THREE.TextureLoader();
 let cached:THREE.Texture|undefined;
+let cachedClouds:THREE.Texture|undefined;
+function cloudTexture():THREE.Texture {
+  if(!cachedClouds){
+    cachedClouds=loader.load(CLOUD_MAP);
+    cachedClouds.colorSpace=THREE.SRGBColorSpace;
+    cachedClouds.wrapS=THREE.RepeatWrapping;
+    cachedClouds.anisotropy=4;
+  }
+  return cachedClouds;
+}
 
 function earthTexture():THREE.Texture {
   if(!cached){
@@ -79,41 +90,42 @@ export function createEarth(future:boolean):THREE.Group {
   globe.userData.animatedShader=true;
   group.add(globe);
 
-  const clouds=new THREE.Mesh(new THREE.SphereGeometry(radius*1.012,80,48),
+  // Real cloud-cover imagery, mapped to a slightly larger sphere.
+  // A separate UV offset produces slow atmospheric drift.
+  const clouds=new THREE.Mesh(new THREE.SphereGeometry(radius*1.013,96,64),
     new THREE.ShaderMaterial({
-      uniforms:{uTime:{value:0},uFade:{value:1}},
+      uniforms:{uClouds:{value:cloudTexture()},uTime:{value:0},uFade:{value:1}},
       transparent:true,depthWrite:false,
       vertexShader:`
-        varying vec3 vPos;varying vec3 vNormal;
-        void main(){vPos=normalize(position);vNormal=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}
+        varying vec2 vUv;varying vec3 vNormal;
+        void main(){
+          vUv=uv;
+          vNormal=normalize(normalMatrix*normal);
+          gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
+        }
       `,
       fragmentShader:`
         precision mediump float;
-        varying vec3 vPos,vNormal;uniform float uTime,uFade;
-        float hash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
-        float noise(vec3 p){
-          vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
-          return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
-          mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);
-        }
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        uniform sampler2D uClouds;
+        uniform float uTime,uFade;
         void main(){
-          // Low-frequency cloud bands with wispy high-frequency details.
-          // Keep cloud coverage sparse enough to reveal the land beneath.
-          vec3 p=vPos*5.5+vec3(uTime*.006,0.,0.);
-          float broad=noise(p)*.58+noise(p*2.1)*.29+noise(p*4.4)*.13;
-          float wisps=noise(p*10.0)*.65+noise(p*19.0)*.35;
-          float field=broad*.82+wisps*.18;
-          float cloud=smoothstep(.57,.69,field)*.30;
-          float sunlight=.55+.45*max(dot(normalize(vNormal),normalize(vec3(-.25,.42,1.))),0.);
-          cloud*=sunlight;
-          if(cloud<.003)discard;
-          gl_FragColor=vec4(vec3(.88,.93,1.),cloud*uFade);
+          vec2 uv=vec2(fract(vUv.x+uTime*.00055),vUv.y);
+          vec4 tex=texture2D(uClouds,uv);
+          float coverage=dot(tex.rgb,vec3(.299,.587,.114));
+          float cloud=smoothstep(.12,.78,coverage)*tex.a*.43;
+          float sun=.60+.40*max(dot(normalize(vNormal),normalize(vec3(-.25,.42,1.))),0.);
+          cloud*=sun;
+          if(cloud<.005)discard;
+          gl_FragColor=vec4(vec3(.94,.97,1.),cloud*uFade);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }
       `
     })
   );
+  clouds.rotation.y=.3;
   clouds.userData.animatedShader=true;
   group.add(clouds);
   return group;
