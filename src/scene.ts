@@ -7,6 +7,9 @@ export class CosmicScene {
   private camera = new THREE.PerspectiveCamera(48, 1, .1, 1200);
   private stars: THREE.Points;
   private subject: THREE.Group = new THREE.Group();
+  private outgoing: {group:THREE.Group; elapsed:number}[] = [];
+  private incomingElapsed = 1.1;
+  private readonly duration = 1.1;
   private clock = new THREE.Clock();
   private frame = 0;
   private targetColor = new THREE.Color('#77b9ff');
@@ -47,8 +50,15 @@ export class CosmicScene {
   }
   setEra(era:Era){
     this.active=era.scene;this.targetColor.set(era.accent);
-    this.subject.clear();
+    for(const old of this.outgoing)this.disposeGroup(old.group);
+    this.outgoing=[];
+    if(this.reduceMotion)this.disposeGroup(this.subject);
+    else if(this.subject.children.length)this.outgoing.push({group:this.subject,elapsed:0});
+    this.subject=new THREE.Group();
+    this.scene.add(this.subject);
     this.subject.rotation.set(0,0,0);
+    this.incomingElapsed=this.reduceMotion?this.duration:0;
+    this.subject.scale.setScalar(this.reduceMotion?1:.82);
     if(era.scene==='dark')return;
     if(era.scene==='earth'){
       const earth=this.sphere(2.6,'#276a9c','#082544',.3);earth.rotation.z=.35;this.subject.add(earth);
@@ -80,14 +90,53 @@ export class CosmicScene {
       this.subject.add(this.sphere(1.35,'#b3c1d9','#657ba6',.25));this.glow(1.55,era.accent,.07);
     }
   }
+  private fade(group:THREE.Group,opacity:number){
+    group.traverse(object=>{
+      if(!(object instanceof THREE.Mesh || object instanceof THREE.Points))return;
+      const materials=Array.isArray(object.material)?object.material:[object.material];
+      for(const material of materials){
+        const m=material as THREE.Material & {userData:{baseOpacity?:number}};
+        if(m.userData.baseOpacity===undefined)m.userData.baseOpacity=m.opacity;
+        m.transparent=true;
+        m.depthWrite=false;
+        m.opacity=m.userData.baseOpacity*opacity;
+      }
+    });
+  }
+  private disposeGroup(group:THREE.Group){
+    this.scene.remove(group);
+    group.traverse(object=>{
+      if(!(object instanceof THREE.Mesh || object instanceof THREE.Points))return;
+      object.geometry.dispose();
+      const materials=Array.isArray(object.material)?object.material:[object.material];
+      for(const material of materials)material.dispose();
+    });
+  }
+  private ease(t:number){return t*t*(3-2*t);}
   private animate=()=>{
     this.frame=requestAnimationFrame(this.animate);
     const dt=Math.min(this.clock.getDelta(),.05);
     this.currentColor.lerp(this.targetColor,Math.min(dt*1.6,1));
     (this.stars.material as THREE.PointsMaterial).color.copy(this.currentColor).lerp(new THREE.Color('#e1eaff'),.5);
     (this.stars.material as THREE.PointsMaterial).opacity=this.active==='dark'?.06:.72;
-    if(!this.reduceMotion){this.subject.rotation.y+=dt*.045;this.stars.rotation.y+=dt*.0015;}
+    if(!this.reduceMotion){
+      this.subject.rotation.y+=dt*.045;
+      this.stars.rotation.y+=dt*.0015;
+      this.incomingElapsed=Math.min(this.duration,this.incomingElapsed+dt);
+      const enter=this.ease(this.incomingElapsed/this.duration);
+      this.fade(this.subject,enter);
+      this.subject.scale.setScalar(.82+.18*enter);
+      for(const old of this.outgoing){
+        old.elapsed=Math.min(this.duration,old.elapsed+dt);
+        const exit=this.ease(old.elapsed/this.duration);
+        this.fade(old.group,1-exit);
+        old.group.scale.setScalar(1+.12*exit);
+        old.group.rotation.y+=dt*.06;
+        if(old.elapsed>=this.duration)this.disposeGroup(old.group);
+      }
+      this.outgoing=this.outgoing.filter(old=>old.elapsed<this.duration);
+    }
     this.renderer.render(this.scene,this.camera);
   };
-  dispose(){cancelAnimationFrame(this.frame);this.renderer.dispose();}
+  dispose(){cancelAnimationFrame(this.frame);this.disposeGroup(this.subject);for(const old of this.outgoing)this.disposeGroup(old.group);this.stars.geometry.dispose();(this.stars.material as THREE.Material).dispose();this.renderer.dispose();}
 }
