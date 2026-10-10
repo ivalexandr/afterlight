@@ -167,7 +167,7 @@ export class CosmicScene {
       if(this.active==='galaxy'||this.active==='nebula'){
         // The galaxy lies in local XY: its normal is local Z.
         // Rotate around that local normal while preserving the viewing tilt.
-        this.subject.rotateZ(dt*.028);
+        this.subject.rotateZ(-dt*.028);
       }else if(this.active!=='blackhole'){
         this.subject.rotation.y+=dt*.045;
       }
@@ -181,7 +181,7 @@ export class CosmicScene {
         const exit=this.ease(old.elapsed/this.duration);
         this.fade(old.group,1-exit);
         old.group.scale.setScalar(1+.12*exit);
-        if(old.group.userData.diskGalaxy)old.group.rotateZ(dt*.028);
+        if(old.group.userData.diskGalaxy)old.group.rotateZ(-dt*.028);
         else old.group.rotation.y+=dt*.06;
         if(old.elapsed>=this.duration)this.disposeGroup(old.group);
       }
