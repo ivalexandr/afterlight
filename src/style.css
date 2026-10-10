@@ -15,3 +15,15 @@ html,body,#app{height:100%;min-height:0;overflow:hidden}
  .timeline-panel{padding-top:15px;padding-bottom:17px}
  .timeline-track-wrap{margin:16px 0 12px}
 }
+
+/* Scene and copy transitions */
+:root{transition:--accent .6s ease}
+.event.enter{animation:cosmic-enter .85s cubic-bezier(.16,1,.3,1) both}
+@keyframes cosmic-enter{
+  from{opacity:0;transform:translate3d(0,22px,0);filter:blur(7px)}
+  to{opacity:1;transform:translate3d(0,0,0);filter:blur(0)}
+}
+.time,.eyebrow,.timeline-heading span:last-child,.brand-symbol,.brand-dot{transition:color .65s ease}
+.timeline-track-wrap input{transition:background .35s ease}
+.scene canvas{will-change:transform}
+@media(prefers-reduced-motion:reduce){.event.enter{animation:none}.time,.eyebrow,.timeline-heading span:last-child,.brand-symbol,.brand-dot,.timeline-track-wrap input{transition:none}}
