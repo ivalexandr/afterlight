@@ -76,8 +76,12 @@ export function createBlackHole(): THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderM
         color+=vec3(.30,.14,.32)*haze*.13*uDisk;
         float blue=exp(-pow((r-.45)/.26,2.0))*.045;
         color+=vec3(.18,.31,.67)*blue;
+        // Feather the entire shader plane into the background (no visible rectangle).
+        float edge=1.0-smoothstep(.73,.995,max(abs(p.x),abs(p.y)));
+        edge*=1.0-smoothstep(.76,1.08,length(p));
+        color*=edge;
         float alpha=clamp(max(max(color.r,color.g),color.b)*1.1,0.0,1.0);
-        alpha=max(alpha,shadow*.99);
+        alpha=max(alpha,shadow*.99)*edge;
         // Premultiply is intentionally disabled: keep the dark shadow opaque.
         gl_FragColor=vec4(color*uFade,alpha*uFade);
       }
