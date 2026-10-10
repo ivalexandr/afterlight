@@ -78,23 +78,34 @@ export class CosmicScene {
       hole.material.uniforms.uDisk.value=era.id==='evaporation'?.22:.9;
       this.subject.add(hole);
     }else if(era.scene==='galaxy'||era.scene==='nebula'){
-      const count=8500,pos=new Float32Array(count*3),colors=new Float32Array(count*3),base=new THREE.Color(era.accent);
-      for(let i=0;i<count;i++){const r=Math.pow(Math.random(),.7)*5.7,arm=i%3,angle=arm*Math.PI*2/3+r*.85+(Math.random()-.5)*.85;
-        pos[i*3]=Math.cos(angle)*r;pos[i*3+1]=Math.sin(angle)*r*.5;pos[i*3+2]=(Math.random()-.5)*.65;
-        const c=base.clone().lerp(new THREE.Color('#ffffff'),Math.random()*.65);colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;
+      const count=16000,pos=new Float32Array(count*3),colors=new Float32Array(count*3),sizes=new Float32Array(count),base=new THREE.Color(era.accent);
+      for(let i=0;i<count;i++){
+        const core=i<count*.3;
+        const r=core?Math.pow(Math.random(),1.9)*2.4:Math.pow(Math.random(),.75)*5.7;
+        const arm=i%3;
+        const angle=arm*Math.PI*2/3+r*.9+(Math.random()-.5)*(core?2.8:.65);
+        pos[i*3]=Math.cos(angle)*r;
+        pos[i*3+1]=Math.sin(angle)*r*.52;
+        pos[i*3+2]=(Math.random()-.5)*(core?.9:.42);
+        const c=base.clone().lerp(new THREE.Color(core?'#fff3cf':'#e4f2ff'),core?.68:Math.random()*.65);
+        colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;
+        sizes[i]=core?1.5+Math.random()*1.5:.65+Math.random()*1.2;
       }
-      const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+      const geo=new THREE.BufferGeometry();
+      geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+      geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+      geo.setAttribute('aSize',new THREE.BufferAttribute(sizes,1));
       const starsMaterial=new THREE.ShaderMaterial({
         transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
         uniforms:{uTime:{value:0},uFade:{value:1}},
         vertexShader:`
-          attribute vec3 color;varying vec3 vColor;
+          attribute vec3 color;attribute float aSize;varying vec3 vColor;
           uniform float uTime;
           void main(){
             vColor=color;
             vec4 mv=modelViewMatrix*vec4(position,1.);
             gl_Position=projectionMatrix*mv;
-            gl_PointSize=clamp(15.0/-mv.z,1.5,6.0);
+            gl_PointSize=clamp(aSize*135.0/max(-mv.z,1.0),3.0,23.0);
           }
         `,
         fragmentShader:`
@@ -104,8 +115,8 @@ export class CosmicScene {
             float r=length(gl_PointCoord-.5)*2.;
             float glow=exp(-r*r*5.0);
             float core=exp(-r*r*32.0);
-            float a=(glow*.4+core*.9)*uFade;
-            gl_FragColor=vec4(vColor*(glow*.6+core*1.7),a);
+            float a=(glow*.48+core*.85)*uFade;
+            gl_FragColor=vec4(vColor*(glow*.55+core*1.8),a);
           }
         `
       });
