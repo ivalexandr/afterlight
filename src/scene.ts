@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Era } from './timeline';
 import { createBlackHole } from './blackHole';
 import { createStellarSurface, createStellarHalo } from './stellar';
+import { createEarth } from './earth';
 
 export class CosmicScene {
   private renderer: THREE.WebGLRenderer;
@@ -63,9 +64,7 @@ export class CosmicScene {
     this.subject.scale.setScalar(this.reduceMotion?1:.82);
     if(era.scene==='dark')return;
     if(era.scene==='earth'){
-      const earth=this.sphere(2.6,'#276a9c','#082544',.3);earth.rotation.z=.35;this.subject.add(earth);
-      const continents=new THREE.Mesh(new THREE.IcosahedronGeometry(2.615,5),new THREE.MeshBasicMaterial({color:'#4a9d86',wireframe:true,transparent:true,opacity:.13}));this.subject.add(continents);
-      this.glow(2.85,'#5ca8ff',.10);
+      this.subject.add(createEarth(era.id==='continents'));
     }else if(era.scene==='sun'||era.scene==='giant'||era.scene==='dwarf'){
       const radius=era.scene==='giant'?4.4:era.scene==='dwarf'?1.5:2.65;
       const color=era.scene==='giant'?'#ef673e':era.scene==='dwarf'?'#ba4c35':'#ffbd65';
