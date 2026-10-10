@@ -1,6 +1,7 @@
 import './style.css';
 import { eras, formatProgress } from './timeline';
 import { CosmicScene } from './scene';
+import { AmbientSound } from './ambient';
 
 const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`
@@ -10,7 +11,7 @@ app.innerHTML=`
   <header class="topbar">
     <a class="brand" href="#now" aria-label="Afterlight, начало"><span class="brand-symbol">✳</span> AFTERLIGHT<span class="brand-dot">.</span></a>
     <div class="top-center">АТЛАС ДАЛЁКОГО БУДУЩЕГО <span class="top-divider">/</span> ИНТЕРАКТИВНАЯ ХРОНИКА</div>
-    <a class="github" href="https://github.com/ivalexandr/afterlight" target="_blank" rel="noopener noreferrer">GITHUB ↗</a>
+    <div class="header-actions"><button id="ambient-toggle" class="ambient-toggle" type="button" aria-pressed="false" title="Включить фоновый эмбиент">♫ <span>ДОБАВИТЬ АТМОСФЕРЫ</span></button><a class="github" href="https://github.com/ivalexandr/afterlight" target="_blank" rel="noopener noreferrer">GITHUB ↗</a></div>
   </header>
   <main class="content">
     <div class="eyebrow"><span class="eyebrow-line"></span><span id="epoch">ПРОЛОГ</span><span class="chapter" id="chapter">01 / 12</span></div>
@@ -32,6 +33,18 @@ app.innerHTML=`
 </div>`;
 
 const scene=new CosmicScene(document.querySelector('#scene')!);
+const ambient=new AmbientSound();
+const ambientButton=document.querySelector<HTMLButtonElement>('#ambient-toggle')!;
+ambientButton.addEventListener('click',async()=>{
+  ambientButton.disabled=true;
+  try{
+    const playing=await ambient.toggle();
+    ambientButton.setAttribute('aria-pressed',String(playing));
+    ambientButton.innerHTML=playing?'♫ <span>ВЫКЛЮЧИТЬ АТМОСФЕРУ</span>':'♫ <span>ДОБАВИТЬ АТМОСФЕРЫ</span>';
+    ambientButton.title=playing?'Выключить фоновый эмбиент':'Включить фоновый эмбиент';
+  }catch(error){console.error('Не удалось включить звук',error);}
+  finally{ambientButton.disabled=false;}
+});
 const slider=document.querySelector<HTMLInputElement>('#timeline')!;
 const ticks=document.querySelector<HTMLDivElement>('#ticks')!;
 const $=(id:string)=>document.getElementById(id)!;
